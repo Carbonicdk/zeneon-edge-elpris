@@ -304,6 +304,19 @@ function showStatus(msg) {
   }));
 }
 
+// ── Hourly tick (moves the current-hour marker without re-fetching) ──────────
+function scheduleHourTick() {
+  const now = new Date();
+  const msToNextHour = (60 - now.getMinutes()) * 60000
+                     - now.getSeconds() * 1000
+                     - now.getMilliseconds();
+  setTimeout(() => {
+    lastCurrentHour = new Date().getHours();
+    if (lastHours) render(lastHours, lastCurrentHour);
+    scheduleHourTick();
+  }, msToNextHour);
+}
+
 // ── Data fetching ─────────────────────────────────────────────────────────────
 async function fetchDay(date) {
   const y  = date.getFullYear();
@@ -332,6 +345,8 @@ async function init() {
     lastHours       = hours;
     lastCurrentHour = currentHour;
     render(hours, currentHour);
+
+    scheduleHourTick();
 
     // Refresh at midnight
     const midnight = new Date(now);
