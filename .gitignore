@@ -16,6 +16,9 @@ build/
 # Cloudflare
 .wrangler/
 
+# Corsair installer binaries
+Corsair Downloads/*.exe
+
 # OS / editor
 .DS_Store
 Thumbs.db

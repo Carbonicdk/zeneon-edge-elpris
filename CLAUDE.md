@@ -41,12 +41,19 @@ Brug ALTID den faktiske timepris, aldrig et månedsgennemsnit (produktet er time
 8. Udvid ikke scope. Løs det der bliver bedt om; nævn tilstødende problemer separat.
 9. Minimale kommentarer, kun hvor logikken ikke er åbenlys.
 
-## Åbne beslutninger (afklar før kodning)
-- **Teknologi/præsentation er ikke fastlagt.** Givet web/canvas-baggrund og Cloudflare-setup
-  er et oplagt default en vanilla TS/HTML-widget deployet til Cloudflare Pages, men bekræft
-  før der scaffoldes.
-- Skal den vise hele døgnets timepriser, kun nuværende time, eller en graf?
-- Skal årsforbruget (1900 kWh) være hardcoded eller et input?
+## Implementeringsbeslutninger (fastlagt)
+- **Teknologi:** Vanilla HTML/JS/CSS — iCUE Widget Builder format (zip med `index.html` + `manifest.json`)
+- **Visning:** Hele døgnet, 24 timer fast 00–23, Warm Amber dark-mode design
+- **Årsforbruget:** Hardcoded 1.900 kWh
+- Se `docs/plan.md` for fuld plan inkl. design-tokens og layout
+
+## iCUE Widget Builder dokumentation
+Corsair/Elgato's officielle widget-dokumentation ligger i `Corsair Downloads/WidgetBuilder/`:
+- `docs/` — widget-koncepter, controls, plugins
+- `references/` — tekniske referencer (manifest, meta-tags, responsive scaling, sikkerhed)
+- `skill.md` — installeret som `.claude/commands/icue-widget-builder.md`
+
+Brug `/icue-widget-builder` for at aktivere skillens workflow ved widget-arbejde.
 
 ## Vedligehold (skal opdateres når kilderne ændrer sig)
 - **L-net tariffer:** skifter typisk 1. april (sommer) og 1. oktober (vinter).
