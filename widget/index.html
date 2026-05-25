@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>tr('Elpris DK1')</title>
   <link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
+  <meta name="x-icue-property" content="showBackground" data-label="tr('Background')" data-type="switch" data-default="true">
   <style>
     html, body {
       margin: 0;
@@ -327,7 +328,14 @@ new ResizeObserver(() => {
 }).observe(document.getElementById('chart'));
 
 // ── iCUE wiring ───────────────────────────────────────────────────────────────
-icueEvents = { onICUEInitialized: init };
+function applyBackground() {
+  const on = typeof showBackground === 'undefined' ? true : showBackground;
+  document.documentElement.style.background = on ? '' : 'transparent';
+  document.body.style.background            = on ? '' : 'transparent';
+  document.body.style.backgroundImage       = on ? '' : 'none';
+}
+
+icueEvents = { onICUEInitialized: init, onDataUpdated: applyBackground };
 
 // Run directly in browser (no iCUE runtime present) or if already initialised
 if (typeof iCUE_initialized === 'undefined' || iCUE_initialized) init();
