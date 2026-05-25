@@ -300,8 +300,8 @@ async function init() {
   try {
     const raw   = await fetchDay(now);
     const hours = raw.map(entry => {
-      // time_start is Danish local time, e.g. "2026-05-25T14:00:00+02:00"
-      const hour = parseInt(entry.time_start.slice(11, 13), 10);
+      // Parse timestamp properly so UTC offset is respected regardless of CET/CEST
+      const hour = new Date(entry.time_start).getHours();
       return { hour, ...calcPrices(entry.DKK_per_kWh, hour, month) };
     }).sort((a, b) => a.hour - b.hour);
 
