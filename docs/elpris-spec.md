@@ -1,139 +1,131 @@
-# Dansk elprisberegner – specifikation
+# Danish Electricity Price Calculator — Specification
 
-## Formål
-Beregn den samlede danske elpris time for time baseret på spotpris + faste tillæg.
+## Purpose
+Calculate the total Danish electricity price hour by hour based on spot price plus fixed charges.
 
 ---
 
-## Datakilder
+## Data Sources
 
-### Spotpris
+### Spot Price
 - **API:** `https://www.elprisenligenu.dk/api/v1/prices/[YYYY]/[MM]-[DD]_DK1.json`
-- **Prisområde:** DK1 (vest for Storebælt)
-- **Format:** JSON-array med `time_start`, `time_end`, `DKK_per_kWh` (ekskl. moms og afgifter)
-- Morgendagens priser tilgængelige fra ca. kl. 13
+- **Price area:** DK1 (west of the Great Belt)
+- **Format:** JSON array with `time_start`, `time_end`, `DKK_per_kWh` (excl. VAT and charges)
+- Tomorrow's prices available from approx. 13:00
 
 ---
 
-## Afregningsmetode (vigtigt)
+## Settlement Method (important)
 
-**Timeafregnet (flexafregnet).** Gasel afregner time for time på den faktiske Nord Pool
-DK1-spotpris. Der findes kun én spotpris pr. time pr. prisområde, så den rå elpris er
-identisk på tværs af elleverandører. Forskellen mellem dem ligger udelukkende i
-tillæg + abonnement, ikke i råstrømmen.
+**Hourly settlement (flex settlement).** Gasel settles hour by hour on the actual Nord Pool DK1 spot price. There is only one spot price per hour per price area, so the raw electricity price is identical across suppliers. The difference between them lies solely in surcharges + subscription, not in the raw power.
 
-**Konsekvens for beregningen:** Brug den faktiske spotpris for HVER enkelt time
-(`DKK_per_kWh` fra det timeopdelte JSON-array). Beregn aldrig på et månedsgennemsnit
-– det svarer til den gamle profilafregning og giver et forkert resultat for et
-timeafregnet produkt.
+**Consequence for the calculation:** Use the actual spot price for EACH individual hour (`DKK_per_kWh` from the hourly JSON array). Never calculate on a monthly average — that corresponds to the old profile settlement and gives an incorrect result for an hourly-settled product.
 
 ```
-for hver time i døgnet:
-    pris(time) = spotpris(time) + tillaeg + l_net_tarif(time) + 11.50 + 0.80
-døgnpris = sum(pris(time) × forbrug(time))   # vægtet efter faktisk timeforbrug
+for each hour of the day:
+    price(hour) = spot(hour) + surcharge + l_net_tariff(hour) + 21.34 + 0.80
+daily_cost = sum(price(hour) × consumption(hour))   # weighted by actual hourly consumption
 ```
 
 ---
 
-## Priskomponenter (alle ekskl. moms)
+## Price Components (all excl. VAT)
 
-### Elleverandør (VALGT: Gasel)
-Skift `tillaeg` og `abonnement_aar` ved leverandørskift.
+### Electricity Supplier (SELECTED: Gasel)
+Change `surcharge` and `subscription_year` when switching supplier.
 
-**Gasel "El til børspris 6 øre"** — aktiv aftale:
-| Post | Pris |
+**Gasel "El til børspris 6 øre"** — active agreement:
+| Item | Price |
 |---|---|
-| Pristillæg | 6,00 øre/kWh |
-| Abonnement | 0 kr./md. |
-| Binding | Ingen |
+| Surcharge | 6.00 øre/kWh |
+| Subscription | 0 DKK/month |
+| Lock-in | None |
 
-Alternativ (til sammenligning): OK El Lavt Forbrug = 19,00 øre/kWh tillæg, 0 kr./md.
+Alternative (for comparison): OK El Lavt Forbrug = 19.00 øre/kWh surcharge, 0 DKK/month
 
-### Energinet / Staten (tariffer 2026) – ekskl. moms
-| Post | Pris |
+### Energinet / State (2026 tariffs) — excl. VAT
+| Item | Price |
 |---|---|
-| Nettarif (transport) | 4,30 øre/kWh |
-| Systemtarif | 7,20 øre/kWh |
-| Transmissionstarif (TSO) | 9,84 øre/kWh |
-| **Total Energinet** | **21,34 øre/kWh** |
+| Network tariff (transport) | 4.30 øre/kWh |
+| System tariff | 7.20 øre/kWh |
+| Transmission tariff (TSO) | 9.84 øre/kWh |
+| **Total Energinet** | **21.34 øre/kWh** |
 
-Bekræftet mod Gasels visning (5,38 + 9,00 + 12,30 = 26,68 øre/kWh inkl. moms = 21,34 ekskl.).
-TSO-tariffen manglede i tidligere version af denne fil.
+Confirmed against Gasel's display (5.38 + 9.00 + 12.30 = 26.68 øre/kWh incl. VAT = 21.34 excl.).
+TSO tariff was missing in an earlier version of this file.
 
-### Elafgift (2026–2027)
-| Post | Pris |
+### Electricity Duty (2026–2027)
+| Item | Price |
 |---|---|
-| Elafgift | 0,80 øre/kWh |
+| Electricity duty | 0.80 øre/kWh |
 
-### L-net nettarif (privat, C-tarif) – ekskl. moms
-Gyldig pr. 1. maj 2026. Kilde: `https://www.l-net.dk/media/1333/tariffer_20260501.pdf`
+### L-net Network Tariff (residential, C-tariff) — excl. VAT
+Valid from 1 May 2026. Source: `https://www.l-net.dk/media/1333/tariffer_20260501.pdf`
 
-| Periode | Lavlast (00–06) | Højlast (06–17 & 21–24) | Spidslast (17–21) |
+| Period | Off-peak (00–06) | Peak (06–17 & 21–24) | High-peak (17–21) |
 |---|---|---|---|
-| Sommer (apr–sep) | 5,34 øre/kWh | 8,01 øre/kWh | 20,82 øre/kWh |
-| Vinter (okt–mar) | 5,34 øre/kWh | 16,02 øre/kWh | 48,05 øre/kWh |
+| Summer (Apr–Sep) | 5.34 øre/kWh | 8.01 øre/kWh | 20.82 øre/kWh |
+| Winter (Oct–Mar) | 5.34 øre/kWh | 16.02 øre/kWh | 48.05 øre/kWh |
 
-**L-net netabonnement (C):** 934 kr./år inkl. moms (748 kr. ekskl.).
-Fast beløb uafhængigt af leverandør. Ved 1.900 kWh/år = 934 / 1.900 × 100 = **49,16 øre/kWh inkl. moms**.
-Bekræftet mod Gasels visning (49,18 øre/kWh).
-
----
-
-## Beregningsformel
-
-To trin: den **variable** timepris (afhænger af spot + tarif), og den **all-in** pris
-hvor det faste netabonnement amortiseres over årsforbruget.
-
-```
-# Parametre
-tillaeg      = 6.00      # Gasel (øre/kWh). OK Lavt Forbrug = 19.00
-aarsforbrug  = 1900      # kWh/år (Brænderigården 7)
-l_net_tarif  = bestem ud fra time og måned (se tabel ovenfor)
-
-# 1) Variabel kWh-pris (timeafregnet) – ekskl. det faste netabonnement
-var_ekskl_moms = spotpris + tillaeg + l_net_tarif + 21.34 + 0.80
-var_inkl_moms  = var_ekskl_moms × 1.25
-
-# 2) Fast netabonnement pr. kWh (inkl. moms)
-fast_pr_kwh = 934 / aarsforbrug × 100        # = 49,16 øre/kWh ved 1900 kWh
-
-# 3) All-in kWh-pris
-allin_inkl_moms = var_inkl_moms + fast_pr_kwh
-```
-
-Alle beløb i øre/kWh medmindre andet er angivet. Gasel har 0 kr. leverandør-abonnement;
-det faste beløb i regnestykket er L-nets netabonnement, som er ens uanset leverandør.
+**L-net network subscription (C):** 934 DKK/year incl. VAT (748 DKK excl.).
+Fixed amount independent of supplier. At 1,900 kWh/year = 934 / 1,900 × 100 = **49.16 øre/kWh incl. VAT**.
+Confirmed against Gasel's display (49.18 øre/kWh).
 
 ---
 
-## Tidslogik for L-net tarif
+## Calculation Formula
+
+Two steps: the **variable** hourly price (depends on spot + tariff), and the **all-in** price where the fixed network subscription is amortised over annual consumption.
 
 ```
-sommer = april (4) til september (9) inklusiv
-vinter = oktober (10) til marts (3) inklusiv
+# Parameters
+surcharge    = 6.00      # Gasel (øre/kWh). OK Lavt Forbrug = 19.00
+annual_kwh   = 1900      # kWh/year (Brænderigården 7)
+l_net_tariff = determined from hour and month (see table above)
 
-lavlast   = time 0–5   (kl. 00:00–06:00)
-højlast   = time 6–16 og time 21–23  (kl. 06:00–17:00 & 21:00–24:00)
-spidslast = time 17–20  (kl. 17:00–21:00)
+# 1) Variable kWh price (hourly settled) — excl. fixed network subscription
+var_excl_vat = spot + surcharge + l_net_tariff + 21.34 + 0.80
+var_incl_vat = var_excl_vat × 1.25
+
+# 2) Fixed network subscription per kWh (incl. VAT)
+fixed_per_kwh = 934 / annual_kwh × 100        # = 49.16 øre/kWh at 1900 kWh
+
+# 3) All-in kWh price
+allin_incl_vat = var_incl_vat + fixed_per_kwh
+```
+
+All amounts in øre/kWh unless otherwise stated. Gasel has 0 DKK supplier subscription;
+the fixed amount in the calculation is L-net's network subscription, which is the same regardless of supplier.
+
+---
+
+## Time Logic for L-net Tariff
+
+```
+summer = April (4) through September (9) inclusive
+winter = October (10) through March (3) inclusive
+
+off-peak  = hours 0–5   (00:00–06:00)
+peak      = hours 6–16 and hours 21–23  (06:00–17:00 & 21:00–24:00)
+high-peak = hours 17–20  (17:00–21:00)
 ```
 
 ---
 
-## Eksempel (Gasel, sommer, spidslast, spotpris = 30 øre/kWh, 1900 kWh/år)
+## Example (Gasel, summer, high-peak, spot = 30 øre/kWh, 1900 kWh/year)
 
 ```
-Variabel:  (30 + 6 + 20.82 + 21.34 + 0.80) × 1.25 = 98,70 øre/kWh
-Fast:      934 / 1900 × 100                        = 49,16 øre/kWh
-All-in:    98,70 + 49,16                           = 147,86 øre/kWh ≈ 1,48 kr./kWh
+Variable:  (30 + 6 + 20.82 + 21.34 + 0.80) × 1.25 = 98.70 øre/kWh
+Fixed:     934 / 1900 × 100                        = 49.16 øre/kWh
+All-in:    98.70 + 49.16                           = 147.86 øre/kWh ≈ 1.48 DKK/kWh
 ```
 
-Den variable del falder markant i lavlast/sommer; den faste del (49,16 øre) er konstant
-og fylder relativt meget ved lavt forbrug.
+The variable portion drops significantly in off-peak/summer; the fixed portion (49.16 øre) is constant and accounts for a relatively large share at low consumption.
 
 ---
 
-## Noter
-- Spotpriser fra elprisenligenu.dk er allerede i DKK og ekskl. moms og afgifter
-- L-net-tariffer opdateres typisk 1. april (sommerskift) og 1. oktober (vinterskift) – tjek `https://www.l-net.dk/priser-og-gebyrer/` for nye PDF'er
-- Energinet-tariffer gælder hele 2026 og 2027
-- Elafgiften er sat til EU-minimum i 2026 og 2027 (0,80 øre/kWh ekskl. moms)
+## Maintenance Notes
+- Spot prices from elprisenligenu.dk are already in DKK and excl. VAT and charges
+- L-net tariffs typically updated 1 April (summer switch) and 1 October (winter switch) — check `https://www.l-net.dk/priser-og-gebyrer/` for new PDFs
+- Energinet tariffs apply throughout 2026 and 2027
+- Electricity duty is set to EU minimum in 2026 and 2027 (0.80 øre/kWh excl. VAT)

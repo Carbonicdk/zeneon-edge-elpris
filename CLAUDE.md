@@ -1,63 +1,63 @@
 # Elpris Widget
 
-Beregner og viser den faktiske, time-for-time danske elpris for:
-- **Adresse:** Brænderigården 7, 2. tv, 7500 Holstebro
-- **Prisområde:** DK1 (vest for Storebælt)
-- **Netselskab:** L-net (kan ikke vælges, bestemt af adressen)
-- **Elleverandør:** Gasel "El til børspris + 6 øre/kWh" (timeafregnet, ingen binding, 0 kr. leverandørabonnement)
+Calculates and displays the actual, hour-by-hour Danish electricity price for:
+- **Address:** Brænderigården 7, 2. tv, 7500 Holstebro
+- **Price area:** DK1 (west of the Great Belt)
+- **Grid operator:** L-net (fixed by address, cannot be changed)
+- **Electricity supplier:** Gasel "El til børspris + 6 øre/kWh" (hourly settled, no lock-in, 0 DKK supplier subscription)
 
-## Mål
-Hent spotprisen pr. time og læg de faste komponenter på, så widget'en viser den reelle
-all-in kWh-pris for hver time i døgnet. Brugeren kan ikke flytte sit forbrug, så formålet
-er overblik og prisindsigt, ikke forbrugsstyring.
+## Goal
+Fetch the spot price per hour and add the fixed components, so the widget shows the real
+all-in kWh price for each hour of the day. The user cannot shift consumption, so the purpose
+is overview and price insight, not consumption management.
 
-## Datakilde
-Spotpris pr. time fra elprisenligenu.dk (gratis, ingen nøgle):
+## Data Source
+Hourly spot price from elprisenligenu.dk (free, no key required):
 ```
 GET https://www.elprisenligenu.dk/api/v1/prices/[YYYY]/[MM]-[DD]_DK1.json
 ```
-Returnerer et array med `DKK_per_kWh` pr. time (ekskl. moms og afgifter).
-Morgendagens priser er tilgængelige fra ca. kl. 13.
+Returns an array with `DKK_per_kWh` per hour (excl. VAT and charges).
+Tomorrow's prices available from approx. 13:00.
 
-## Prisberegning
-`docs/elpris-spec.md` er den eneste sandhed for alle konstanter og formler. Kort:
+## Price Calculation
+`docs/elpris-spec.md` is the single source of truth for all constants and formulas. Summary:
 ```
-var_ekskl_moms  = spotpris + 6.00 + l_net_tarif(time, sæson) + 21.34 + 0.80
-var_inkl_moms   = var_ekskl_moms × 1.25
-fast_pr_kwh     = 934 / aarsforbrug × 100        # L-net netabonnement, inkl. moms
-allin_inkl_moms = var_inkl_moms + fast_pr_kwh
+var_excl_vat    = spot + 6.00 + l_net_tariff(hour, season) + 21.34 + 0.80
+var_incl_vat    = var_excl_vat × 1.25
+fixed_per_kwh   = 934 / annual_kwh × 100        # L-net network subscription, incl. VAT
+allin_incl_vat  = var_incl_vat + fixed_per_kwh
 ```
-Alle tal er krydstjekket mod Gasels og L-nets officielle visning (maj 2026).
-Brug ALTID den faktiske timepris, aldrig et månedsgennemsnit (produktet er timeafregnet).
+All figures cross-checked against Gasel's and L-net's official displays (May 2026).
+Always use the actual hourly price, never a monthly average (the product is hourly settled).
 
-## Kodeprincipper (gælder al kode i dette repo)
-1. Simpelt slår komplekst. Ingen overengineering.
-2. Ingen fallbacks: én korrekt vej, ingen alternativer.
-3. Én måde at gøre tingene på, ikke mange.
-4. Klarhed slår bagudkompatibilitet.
-5. Fail fast: kast fejl når forudsætninger ikke er opfyldt.
-6. Ingen backups: stol på den primære mekanisme.
-7. Fix root cause, ikke symptomer.
-8. Udvid ikke scope. Løs det der bliver bedt om; nævn tilstødende problemer separat.
-9. Minimale kommentarer, kun hvor logikken ikke er åbenlys.
+## Implementation Decisions (resolved)
+- **Technology:** Vanilla HTML/JS/CSS — iCUE Widget Builder format (zip with `index.html` + `manifest.json`)
+- **Display:** Full day, 24 hours fixed 00–23, Warm Amber dark-mode design
+- **Annual consumption:** Hardcoded 1,900 kWh
+- See `docs/plan.md` for the full plan including design tokens and layout
 
-## Implementeringsbeslutninger (fastlagt)
-- **Teknologi:** Vanilla HTML/JS/CSS — iCUE Widget Builder format (zip med `index.html` + `manifest.json`)
-- **Visning:** Hele døgnet, 24 timer fast 00–23, Warm Amber dark-mode design
-- **Årsforbruget:** Hardcoded 1.900 kWh
-- Se `docs/plan.md` for fuld plan inkl. design-tokens og layout
+## iCUE Widget Builder Documentation
+Official Corsair/Elgato widget documentation lives at the project root:
+- `docs/` — widget concepts, controls, plugins (plus `elpris-spec.md` and `plan.md`)
+- `references/` — technical references (manifest, meta-tags, responsive scaling, security)
+- `skill.md` — source for `.claude/commands/icue-widget-builder.md`
 
-## iCUE Widget Builder dokumentation
-Corsair/Elgato's officielle widget-dokumentation ligger i `Corsair Downloads/WidgetBuilder/`:
-- `docs/` — widget-koncepter, controls, plugins
-- `references/` — tekniske referencer (manifest, meta-tags, responsive scaling, sikkerhed)
-- `skill.md` — installeret som `.claude/commands/icue-widget-builder.md`
+Use `/icue-widget-builder` to activate the skill's workflow when working on the widget.
 
-Brug `/icue-widget-builder` for at aktivere skillens workflow ved widget-arbejde.
+## Coding Principles (apply to all code in this repo)
+1. Simple beats complex. No over-engineering.
+2. No fallbacks: one correct path, no alternatives.
+3. One way to do things, not many.
+4. Clarity beats backwards compatibility.
+5. Fail fast: throw errors when preconditions are not met.
+6. No backups: trust the primary mechanism.
+7. Fix root cause, not symptoms.
+8. Don't expand scope. Solve what is asked; mention adjacent issues separately.
+9. Minimal comments, only where the logic is non-obvious.
 
-## Vedligehold (skal opdateres når kilderne ændrer sig)
-- **L-net tariffer:** skifter typisk 1. april (sommer) og 1. oktober (vinter).
-  Hent ny PDF fra https://www.l-net.dk/priser-og-gebyrer/
-- **Energinet/TSO-tariffer:** justeres kvartalsvist. Tjek mod en faktisk leverandørvisning.
-- **Elafgift:** 0,80 øre/kWh ekskl. moms gælder kun 2026–2027 (grøn skattereform, lov L24).
-- **Netabonnement:** 934 kr./år inkl. moms (L-net C-tarif).
+## Maintenance (update when sources change)
+- **L-net tariffs:** typically change 1 April (summer) and 1 October (winter).
+  Fetch new PDF from https://www.l-net.dk/priser-og-gebyrer/
+- **Energinet/TSO tariffs:** adjusted quarterly. Cross-check against an actual supplier display.
+- **Electricity duty:** 0.80 øre/kWh excl. VAT applies only 2026–2027 (green tax reform, act L24).
+- **Network subscription:** 934 DKK/year incl. VAT (L-net C-tariff).

@@ -16,8 +16,8 @@ build/
 # Cloudflare
 .wrangler/
 
-# Corsair installer binaries
-Corsair Downloads/*.exe
+# Corsair Downloads folder (installers, source zips — docs moved to project root)
+Corsair Downloads/
 
 # OS / editor
 .DS_Store

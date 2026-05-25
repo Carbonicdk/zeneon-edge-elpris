@@ -1,52 +1,52 @@
-# Implementeringsplan: Xeneon Edge Elpris Widget
+# Implementation Plan: Xeneon Edge Electricity Price Widget
 
-## Beslutninger
+## Decisions
 
-| Emne | Valg |
+| Topic | Choice |
 |---|---|
-| Visning | Hele døgnet — 24 timer, 00–23, fast rækkefølge |
-| Årsforbruget | Hardcoded 1.900 kWh |
-| Teknologi | Vanilla HTML/JS/CSS (ingen build-trin, ingen dependencies) |
-| Design | Warm Amber — se nedenfor |
+| Display | Full day — 24 hours, 00–23, fixed order |
+| Annual consumption | Hardcoded 1,900 kWh |
+| Technology | Vanilla HTML/JS/CSS (no build step, no dependencies) |
+| Design | Warm Amber — see below |
 
 ---
 
-## Filstruktur
+## File Structure
 
 ```
 widget/
-├── index.html          — al logik, SVG-rendering og animation
-├── manifest.json       — iCUE widget-metadata
+├── index.html          — all logic, SVG rendering and animation
+├── manifest.json       — iCUE widget metadata
 └── resources/
-    └── icon.svg        — hvid enkeltfarvet SVG, transparent baggrund
+    └── icon.svg        — white single-colour SVG, transparent background
 ```
 
-Pakkes som zip til iCUE Widget Builder.
+Packaged as a zip for iCUE Widget Builder.
 
 ---
 
-## Warm Amber design
+## Warm Amber Design
 
-Designet er baseret på Claude Design-mockup (2026-05-25), Warm Amber-varianten.
+Design based on Claude Design mockup (2026-05-25), Warm Amber variant.
 
-### Farver
+### Colours
 
-| Token | Værdi |
+| Token | Value |
 |---|---|
-| Baggrund | `#0e0a08` |
-| Baggrund overlay | `radial-gradient(ellipse 80% 60% at 30% 120%, rgba(217,119,87,0.18), transparent 60%), radial-gradient(ellipse 70% 50% at 80% -20%, rgba(217,119,87,0.10), transparent 60%)` |
-| Tekst | `#f6efe8` |
-| Tekst dæmpet | `rgba(246,239,232,0.45)` |
-| Grid-linjer | `rgba(246,239,232,0.07)` |
-| Søjle (spot-del) | `#b8542e` |
-| Søjle (tarif-cap) | `#e89668` |
-| Nuværende time (spot) | `#ffd166` |
-| Nuværende time (tarif) | `#fff2c2` |
-| Nuværende time outline | `#ffe27a` |
-| Nuværende time label | `#ffe27a` |
-| Glow-farve | `#ffd166` |
+| Background | `#0e0a08` |
+| Background overlay | `radial-gradient(ellipse 80% 60% at 30% 120%, rgba(217,119,87,0.18), transparent 60%), radial-gradient(ellipse 70% 50% at 80% -20%, rgba(217,119,87,0.10), transparent 60%)` |
+| Text | `#f6efe8` |
+| Text muted | `rgba(246,239,232,0.45)` |
+| Grid lines | `rgba(246,239,232,0.07)` |
+| Bar (spot portion) | `#b8542e` |
+| Bar (tariff cap) | `#e89668` |
+| Current hour (spot) | `#ffd166` |
+| Current hour (tariff) | `#fff2c2` |
+| Current hour outline | `#ffe27a` |
+| Current hour label | `#ffe27a` |
+| Glow colour | `#ffd166` |
 
-### Layout (designrum, 2560×720)
+### Layout (design space, 2560×720)
 
 ```
 padding: top 64 · right 80 · bottom 80 · left 180
@@ -54,82 +54,81 @@ barGap: 18 px
 barWidth: (plotW − 23 × 18) / 24
 ```
 
-### Visuelle elementer
+### Visual Elements
 
-- **Stacked bars:** Søjlen er todelt — spot-del (bundfarve `#b8542e`) + tarif-cap (lysere `#e89668`). To-tonen læses som "lagt ovenpå", ikke som et hul.
-- **Nuværende time:** Gylden farve (`#ffd166`) + pulserende glow-filter (`feGaussianBlur stdDeviation=14`, opacity 0.25→0.75→0.25, 2.2s) + hvid outline (2px) + **"NU"-pille** under x-akse-label.
-- **Y-akse:** Ticks ved 0, 0.25, 0.50 … kr/kWh. Baseline solid, øvrige stiplede (`2 6`). Labels venstre for plot.
-- **X-akse:** Time-labels 00–23, nuværende time fed + lysere farve.
-- **Titel:** `Elpris · 24 t · DK1` øverst venstre, versaler, dæmpet farve.
+- **Stacked bars:** Bar is two-tone — spot portion (base colour `#b8542e`) + tariff cap (lighter `#e89668`). The two-tone reads as "layered on top", not as a gap.
+- **Current hour:** Golden colour (`#ffd166`) + pulsing glow filter (`feGaussianBlur stdDeviation=14`, opacity 0.25→0.75→0.25, 2.2s) + white outline (2px) + **"NU" pill** below x-axis label.
+- **Y-axis:** Ticks at 0, 0.25, 0.50 … DKK/kWh. Baseline solid, others dashed (`2 6`). Labels left of plot.
+- **X-axis:** Hour labels 00–23, current hour bold + brighter colour.
+- **Title:** `Elpris · 24 t · DK1` top left, uppercase, muted colour.
 
 ---
 
-## Prisberegning
+## Price Calculation
 
-Kilde: `docs/elpris-spec.md` — ingen afvigelser tilladt.
+Source: `docs/elpris-spec.md` — no deviations permitted.
 
 ```
-TILLAEG      = 6.00        # Gasel (øre/kWh)
-ENERGINET    = 21.34       # nettarif + systemtarif + TSO (øre/kWh)
-ELAFGIFT     = 0.80        # øre/kWh (2026–2027)
-AARSFORBRUG  = 1900        # kWh/år
+SURCHARGE    = 6.00        # Gasel (øre/kWh)
+ENERGINET    = 21.34       # network + system + TSO tariffs (øre/kWh)
+DUTY         = 0.80        # øre/kWh (2026–2027)
+ANNUAL_KWH   = 1900        # kWh/year
 
-var_ekskl = spotpris + TILLAEG + l_net_tarif(time, måned) + ENERGINET + ELAFGIFT
-var_inkl  = var_ekskl × 1.25
-fast_kwh  = 934 / AARSFORBRUG × 100    # = 49,16 øre/kWh
-allin     = var_inkl + fast_kwh
+var_excl = spot + SURCHARGE + l_net_tariff(hour, month) + ENERGINET + DUTY
+var_incl = var_excl × 1.25
+fixed    = 934 / ANNUAL_KWH × 100    # = 49.16 øre/kWh
+allin    = var_incl + fixed
 ```
 
-**Dataformat til SVG-rendering:**
+**SVG rendering data format:**
 ```js
-{ hour, spot: allin_inkl_moms, total: allin_inkl_moms }
-// spot = variabel del (var_inkl), total = allin (inkl. fast netabonnement)
-// Tarif-cap = total − spot = fast_kwh = 49,16 øre/kWh (konstant)
+{ hour, spot: var_incl, total: allin }
+// spot = variable portion (var_incl), total = all-in (incl. fixed network subscription)
+// Tariff cap height = total − spot = fixed = 49.16 øre/kWh (constant)
 ```
 
-**L-net tarif-tabel** (ekskl. moms, pr. 1. maj 2026):
+**L-net tariff table** (excl. VAT, from 1 May 2026):
 
-| Periode | Lavlast 00–05 | Højlast 06–16, 21–23 | Spidslast 17–20 |
+| Period | Off-peak 00–05 | Peak 06–16, 21–23 | High-peak 17–20 |
 |---|---|---|---|
-| Sommer (apr–sep) | 5,34 | 8,01 | 20,82 |
-| Vinter (okt–mar) | 5,34 | 16,02 | 48,05 |
+| Summer (Apr–Sep) | 5.34 | 8.01 | 20.82 |
+| Winter (Oct–Mar) | 5.34 | 16.02 | 48.05 |
 
 ---
 
-## Datahentning
+## Data Fetching
 
 ```
 GET https://www.elprisenligenu.dk/api/v1/prices/YYYY/MM-DD_DK1.json
 ```
 
-- Ingen API-nøgle. Ingen persondata sendes.
-- Henter dagens priser ved opstart.
-- Hvis `Date.now()` > kl. 13:00 lokal tid: hent også morgendagens priser (vises ikke i v1).
-- Refresh: ved midnat (ny dag) og ved opstart.
-- Fejlhåndtering: vis "Ingen data" tekst i plot-området.
+- No API key. No personal data sent.
+- Fetches today's prices on startup.
+- Refreshes at midnight (new day).
+- Error state: display "No data" text in plot area.
 
 ---
 
-## Responsive størrelser (Xeneon Edge `dashboard_lcd`)
+## Responsive Sizes (Xeneon Edge `dashboard_lcd`)
 
-| Størrelse | Opløsning | Tilpasning |
+| Size | Resolution | Adaptation |
 |---|---|---|
-| Small | 840×344 | `transform: scale(840/2560)` på SVG |
-| Medium | 840×696 | scale + øget padding top |
-| Large | 1688×696 | scale |
+| Small | 840×344 | SVG scales via `viewBox` + `preserveAspectRatio` |
+| Medium | 840×696 | same |
+| Large | 1688×696 | same |
 | XL | 2536×696 | ~1:1 |
 
-SVG'en er designet i 2560×720 og skaleres med `viewBox` + `preserveAspectRatio="xMidYMid meet"` så den passer i alle størrelser automatisk.
+SVG is designed at 2560×720 and scales automatically to all sizes via `viewBox="0 0 2560 720"` + `preserveAspectRatio="xMidYMid meet"`.
 
 ---
 
-## manifest.json (nøglefelter)
+## manifest.json (key fields)
 
 ```json
 {
   "id": "dk.carbonicdk.elpris",
   "name": "Elpris DK1",
-  "description": "Time-for-time elpris inkl. alle afgifter og tariffer (Gasel/L-net/DK1)",
+  "description": "Hourly Danish electricity price incl. all charges and tariffs (Gasel/L-net/DK1)",
   "version": "1.0.0",
   "supported_devices": [{ "type": "dashboard_lcd" }],
   "interactive": false
@@ -138,13 +137,13 @@ SVG'en er designet i 2560×720 og skaleres med `viewBox` + `preserveAspectRatio=
 
 ---
 
-## Rækkefølge
+## Build Order
 
 1. `manifest.json` + `resources/icon.svg`
-2. Prisberegning i JS (`calcPrice(spotOere, hour, month)`)
-3. Data-fetch + parsing
-4. SVG-rendering (statisk, ingen animation endnu)
-5. Warm Amber farver + layout
-6. Pulserende glow-animation på nuværende time
-7. Test i browser ved alle 4 Xeneon Edge-størrelser
-8. Pak som zip og test i iCUE Widget Builder
+2. Price calculation in JS (`calcPrice(spotOere, hour, month)`)
+3. Data fetch + parsing
+4. SVG rendering (static, no animation yet)
+5. Warm Amber colours + layout
+6. Pulsing glow animation on current hour
+7. Test in browser at all 4 Xeneon Edge sizes
+8. Package as zip and test in iCUE Widget Builder
