@@ -12,12 +12,6 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #0e0a08;
-    }
-    body {
-      background-image:
-        radial-gradient(ellipse 80% 60% at 30% 120%, rgba(217,119,87,0.18), transparent 60%),
-        radial-gradient(ellipse 70% 50% at 80% -20%, rgba(217,119,87,0.10), transparent 60%);
     }
     svg {
       display: block;
@@ -97,6 +91,7 @@ function niceTicks(max, step) {
 // ── Render ───────────────────────────────────────────────────────────────────
 let lastHours = null;
 let lastCurrentHour = 0;
+let bgOn = true;
 
 function render(hours, currentHour) {
   const svg = document.getElementById('chart');
@@ -109,17 +104,19 @@ function render(hours, currentHour) {
   // Clear all children
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-  // Glow filter
-  const defs    = svgEl('defs');
-  const filter  = svgEl('filter', { id: 'glow', x: '-50%', y: '-50%', width: '200%', height: '200%' });
-  const blur    = svgEl('feGaussianBlur', { stdDeviation: Math.max(3, H * 0.019).toFixed(1), result: 'b' });
-  const feMerge = svgEl('feMerge');
-  feMerge.appendChild(svgEl('feMergeNode', { in: 'b' }));
-  feMerge.appendChild(svgEl('feMergeNode', { in: 'SourceGraphic' }));
-  filter.appendChild(blur);
-  filter.appendChild(feMerge);
-  defs.appendChild(filter);
-  svg.appendChild(defs);
+  // Glow filter (only needed when background is on)
+  if (bgOn) {
+    const defs    = svgEl('defs');
+    const filter  = svgEl('filter', { id: 'glow', x: '-50%', y: '-50%', width: '200%', height: '200%' });
+    const blur    = svgEl('feGaussianBlur', { stdDeviation: Math.max(3, H * 0.019).toFixed(1), result: 'b' });
+    const feMerge = svgEl('feMerge');
+    feMerge.appendChild(svgEl('feMergeNode', { in: 'b' }));
+    feMerge.appendChild(svgEl('feMergeNode', { in: 'SourceGraphic' }));
+    filter.appendChild(blur);
+    filter.appendChild(feMerge);
+    defs.appendChild(filter);
+    svg.appendChild(defs);
+  }
 
   // Layout
   const padTop    = Math.round(H * 0.089);
@@ -150,14 +147,16 @@ function render(hours, currentHour) {
   for (let i = 0; i < ticks.length; i++) {
     const t = ticks[i];
     const y = yFor(t);
-    svg.appendChild(svgEl('line', {
-      x1: padLeft, x2: W - padRight,
-      y1: y,       y2: y,
-      stroke: C.grid,
-      'stroke-width': 1,
-      'stroke-dasharray': i === 0 ? '0' : '2 6',
-    }));
-    svg.appendChild(svgText(t.toFixed(2).replace('.', ',') + ' kr.', {
+    if (bgOn) {
+      svg.appendChild(svgEl('line', {
+        x1: padLeft, x2: W - padRight,
+        y1: y,       y2: y,
+        stroke: C.grid,
+        'stroke-width': 1,
+        'stroke-dasharray': i === 0 ? '0' : '2 6',
+      }));
+    }
+    svg.appendChild(svgText(t.toFixed(2).replace('.', ',') + ' kr.', {
       x: padLeft - tickGap,
       y,
       'text-anchor': 'end',
@@ -183,8 +182,8 @@ function render(hours, currentHour) {
 
     const g = svgEl('g');
 
-    // Glow halo (animated, current hour only)
-    if (isNow) {
+    // Glow halo (animated, current hour only, only with background)
+    if (isNow && bgOn) {
       const halo = svgEl('rect', {
         x: x - glowPad,
         y: totalY - glowPad,
@@ -342,10 +341,15 @@ function getIcueProperty(name) {
 
 function applyBackground() {
   const val = getIcueProperty('showBackground');
-  const on  = val === undefined ? true : val;
-  document.documentElement.style.background = on ? '' : 'transparent';
-  document.body.style.background            = on ? '' : 'transparent';
-  document.body.style.backgroundImage       = on ? '' : 'none';
+  bgOn = val === undefined ? true : val;
+
+  document.documentElement.style.background = bgOn ? '#0e0a08' : '';
+  document.body.style.backgroundImage = bgOn
+    ? 'radial-gradient(ellipse 80% 60% at 30% 120%, rgba(217,119,87,0.18), transparent 60%),' +
+      'radial-gradient(ellipse 70% 50% at 80% -20%, rgba(217,119,87,0.10), transparent 60%)'
+    : '';
+
+  if (lastHours) render(lastHours, lastCurrentHour);
 }
 
 icueEvents = { onICUEInitialized: init, onDataUpdated: applyBackground };
