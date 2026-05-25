@@ -328,8 +328,21 @@ new ResizeObserver(() => {
 }).observe(document.getElementById('chart'));
 
 // ── iCUE wiring ───────────────────────────────────────────────────────────────
+// iCUE may inject properties into a sandboxed scope rather than window directly
+function getIcueProperty(name) {
+  if (typeof window !== 'undefined' && Object.prototype.hasOwnProperty.call(window, name)) {
+    const value = window[name];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  try {
+    return Function('return typeof ' + name + ' !== "undefined" ? ' + name + ' : undefined')();
+  } catch (e) {}
+  return undefined;
+}
+
 function applyBackground() {
-  const on = typeof showBackground === 'undefined' ? true : showBackground;
+  const val = getIcueProperty('showBackground');
+  const on  = val === undefined ? true : val;
   document.documentElement.style.background = on ? '' : 'transparent';
   document.body.style.background            = on ? '' : 'transparent';
   document.body.style.backgroundImage       = on ? '' : 'none';
@@ -338,7 +351,10 @@ function applyBackground() {
 icueEvents = { onICUEInitialized: init, onDataUpdated: applyBackground };
 
 // Run directly in browser (no iCUE runtime present) or if already initialised
-if (typeof iCUE_initialized === 'undefined' || iCUE_initialized) init();
+if (typeof iCUE_initialized === 'undefined' || iCUE_initialized) {
+  init();
+  applyBackground();
+}
 </script>
 </body>
 </html>
