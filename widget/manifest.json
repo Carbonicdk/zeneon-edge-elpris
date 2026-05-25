@@ -1,0 +1,16 @@
+{
+  "author": "Kenny J.",
+  "id": "dk.carbonicdk.elpris",
+  "name": "tr('Elpris DK1')",
+  "description": "Hourly Danish electricity price incl. all charges and tariffs (Gasel / L-net / DK1)",
+  "version": "1.0.0",
+  "preview_icon": "resources/icon.svg",
+  "min_framework_version": "1.0.0",
+  "os": [
+    { "platform": "windows" }
+  ],
+  "supported_devices": [
+    { "type": "dashboard_lcd" }
+  ],
+  "interactive": false
+}

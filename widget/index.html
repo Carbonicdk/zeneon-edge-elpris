@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <title>tr('Elpris DK1')</title>
+  <link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0e0a08;
+    }
+    body {
+      background-image:
+        radial-gradient(ellipse 80% 60% at 30% 120%, rgba(217,119,87,0.18), transparent 60%),
+        radial-gradient(ellipse 70% 50% at 80% -20%, rgba(217,119,87,0.10), transparent 60%);
+    }
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body>
+<svg id="chart"></svg>
+
+<script>
+// ── Price constants (source: docs/elpris-spec.md) ────────────────────────────
+const SURCHARGE  = 6.00;   // Gasel surcharge, øre/kWh excl. VAT
+const ENERGINET  = 21.34;  // Energinet total (transport + system + TSO), øre/kWh excl. VAT
+const DUTY       = 0.80;   // Electricity duty 2026–2027, øre/kWh excl. VAT
+const VAT        = 1.25;
+const FIXED      = 934 / 1900 * 100; // L-net net subscription amortised, øre/kWh incl. VAT
+
+// L-net C-tariff (øre/kWh excl. VAT, valid from 1 May 2026)
+function lNetTariff(hour, month) {
+  const summer = month >= 4 && month <= 9;
+  if (hour >= 17 && hour <= 20) return summer ? 20.82 : 48.05; // high-peak
+  if (hour <= 5)                return 5.34;                    // off-peak
+  return summer ? 8.01 : 16.02;                                 // peak
+}
+
+// Returns { spot, total } in DKK/kWh
+// spot  = variable all-in (excl. fixed net subscription) — bottom bar segment
+// total = all-in incl. fixed net subscription            — full bar height
+function calcPrices(spotDkk, hour, month) {
+  const spotOere = spotDkk * 100;
+  const varExcl  = spotOere + SURCHARGE + lNetTariff(hour, month) + ENERGINET + DUTY;
+  const varIncl  = varExcl * VAT;
+  return {
+    spot:  varIncl / 100,
+    total: (varIncl + FIXED) / 100,
+  };
+}
+
+// ── Colours (Warm Amber theme) ───────────────────────────────────────────────
+const C = {
+  fgMuted:   'rgba(246,239,232,0.45)',
+  grid:      'rgba(246,239,232,0.07)',
+  bar:       '#b8542e',
+  tariff:    '#e89668',
+  current:   '#ffd166',
+  curTariff: '#fff2c2',
+  curStroke: '#ffe27a',
+  curLabel:  '#ffe27a',
+};
+
+// ── SVG helpers ──────────────────────────────────────────────────────────────
+const NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  return e;
+}
+
+function svgText(str, attrs) {
+  const t = svgEl('text', attrs);
+  t.textContent = str;
+  return t;
+}
+
+// ── Tick calculation ─────────────────────────────────────────────────────────
+function niceTicks(max, step) {
+  const top = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = 0; v <= top + 1e-9; v = +(v + step).toFixed(2)) ticks.push(v);
+  return { ticks, top };
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+let lastHours = null;
+let lastCurrentHour = 0;
+
+function render(hours, currentHour) {
+  const svg = document.getElementById('chart');
+  const W = svg.clientWidth;
+  const H = svg.clientHeight;
+  if (!W || !H) return;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  // Clear all children
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // Glow filter
+  const defs    = svgEl('defs');
+  const filter  = svgEl('filter', { id: 'glow', x: '-50%', y: '-50%', width: '200%', height: '200%' });
+  const blur    = svgEl('feGaussianBlur', { stdDeviation: Math.max(3, H * 0.019).toFixed(1), result: 'b' });
+  const feMerge = svgEl('feMerge');
+  feMerge.appendChild(svgEl('feMergeNode', { in: 'b' }));
+  feMerge.appendChild(svgEl('feMergeNode', { in: 'SourceGraphic' }));
+  filter.appendChild(blur);
+  filter.appendChild(feMerge);
+  defs.appendChild(filter);
+  svg.appendChild(defs);
+
+  // Layout
+  const padTop    = Math.round(H * 0.089);
+  const padRight  = Math.round(W * 0.031);
+  const padBottom = Math.round(H * 0.111);
+  // padLeft must accommodate Y-axis labels ("1,75 kr." ≈ 5× fsLabel wide) plus gap
+  const fsLabelEst = Math.max(11, Math.round(H * 0.030));
+  const padLeft   = Math.max(Math.round(fsLabelEst * 5.2), Math.round(W * 0.070));
+  const plotW     = W - padLeft - padRight;
+  const plotH     = H - padTop - padBottom;
+  const barGap    = Math.max(2, Math.round(W * 0.007));
+  const barW      = (plotW - barGap * 23) / 24;
+  const r         = Math.min(barW / 2, Math.max(3, H * 0.014));
+  const glowPad   = Math.max(2, Math.round(H * 0.008));
+  const stroke    = Math.max(1, H * 0.003);
+
+  // Font sizes
+  const fsLabel = Math.max(11, Math.round(H * 0.030));
+  const fsHour  = Math.max(11, Math.round(H * 0.033));
+  const fsPill  = Math.max(7,  Math.round(H * 0.017));
+  const pillH   = Math.round(fsPill * 1.6);
+  const pillW   = Math.round(pillH * 2.8);
+
+  const maxVal = Math.max(...hours.map(h => h.total));
+  const { ticks, top } = niceTicks(maxVal, 0.25);
+
+  const yFor = v => padTop + (1 - v / top) * plotH;
+
+  // Title
+  svg.appendChild(svgText('Elpris · 24 t · DK1', {
+    x: padLeft,
+    y: Math.round(padTop * 0.5),
+    'text-anchor': 'start',
+    'dominant-baseline': 'central',
+    'font-size': Math.max(10, Math.round(H * 0.030)),
+    'letter-spacing': Math.max(1, Math.round(H * 0.006)),
+    'font-weight': 500,
+    fill: C.fgMuted,
+  }));
+
+  // Y-axis grid lines and tick labels
+  const tickGap = Math.max(8, Math.round(W * 0.009));
+  for (let i = 0; i < ticks.length; i++) {
+    const t = ticks[i];
+    const y = yFor(t);
+    svg.appendChild(svgEl('line', {
+      x1: padLeft, x2: W - padRight,
+      y1: y,       y2: y,
+      stroke: C.grid,
+      'stroke-width': 1,
+      'stroke-dasharray': i === 0 ? '0' : '2 6',
+    }));
+    svg.appendChild(svgText(t.toFixed(2).replace('.', ',') + ' kr.', {
+      x: padLeft - tickGap,
+      y,
+      'text-anchor': 'end',
+      'dominant-baseline': 'central',
+      'font-size': fsLabel,
+      'font-weight': 500,
+      fill: C.fgMuted,
+    }));
+  }
+
+  // Hour bars
+  const hourLabelY = H - padBottom + Math.round(padBottom * 0.42);
+  const pillY      = H - padBottom + Math.round(padBottom * 0.70);
+
+  for (let i = 0; i < 24; i++) {
+    const h = hours[i];
+    const isNow  = h.hour === currentHour;
+    const x      = padLeft + i * (barW + barGap);
+    const totalY = yFor(h.total);
+    const spotY  = yFor(h.spot);
+    const totalH = H - padBottom - totalY;
+    const spotH  = H - padBottom - spotY;
+    const cx     = x + barW / 2;
+
+    const g = svgEl('g');
+
+    // Glow halo (animated, current hour only)
+    if (isNow) {
+      const halo = svgEl('rect', {
+        x: x - glowPad,
+        y: totalY - glowPad,
+        width:  barW + glowPad * 2,
+        height: totalH + glowPad * 2,
+        rx: r + glowPad,
+        fill: C.current,
+        opacity: 0.55,
+        filter: 'url(#glow)',
+      });
+      const anim = svgEl('animate', {
+        attributeName: 'opacity',
+        values: '0.25;0.75;0.25',
+        dur: '2.2s',
+        repeatCount: 'indefinite',
+      });
+      halo.appendChild(anim);
+      g.appendChild(halo);
+    }
+
+    // Variable portion (bottom bar segment — spot + tariffs + duty)
+    g.appendChild(svgEl('rect', {
+      x, y: spotY,
+      width: barW, height: spotH,
+      rx: r,
+      fill: isNow ? C.current : C.bar,
+    }));
+
+    // Fixed network subscription cap (top segment, constant 49.16 øre/kWh)
+    if (h.total > h.spot) {
+      g.appendChild(svgEl('rect', {
+        x, y: totalY,
+        width: barW, height: spotY - totalY + r,
+        rx: r,
+        fill: isNow ? C.curTariff : C.tariff,
+      }));
+    }
+
+    // Current-hour outline
+    if (isNow) {
+      g.appendChild(svgEl('rect', {
+        x: x - stroke * 0.75,
+        y: totalY - stroke * 0.75,
+        width:  barW + stroke * 1.5,
+        height: totalH + stroke * 1.5,
+        rx: r + stroke * 0.75,
+        fill: 'none',
+        stroke: C.curStroke,
+        'stroke-width': stroke,
+        opacity: 0.9,
+      }));
+    }
+
+    // X-axis hour label
+    g.appendChild(svgText(String(h.hour).padStart(2, '0'), {
+      x: cx, y: hourLabelY,
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      'font-size': fsHour,
+      'font-weight': isNow ? 800 : 500,
+      fill: isNow ? C.curLabel : C.fgMuted,
+    }));
+
+    // "NU" pill
+    if (isNow) {
+      const pG = svgEl('g', { transform: `translate(${cx},${pillY})` });
+      pG.appendChild(svgEl('rect', {
+        x: -(pillW / 2), y: -(pillH / 2),
+        width: pillW, height: pillH,
+        rx: pillH / 2,
+        fill: C.curStroke,
+      }));
+      pG.appendChild(svgText('NU', {
+        x: 0, y: 0,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central',
+        'font-size': fsPill,
+        'font-weight': 800,
+        fill: '#0e0a08',
+        'letter-spacing': Math.max(1, Math.round(fsPill * 0.25)),
+      }));
+      g.appendChild(pG);
+    }
+
+    svg.appendChild(g);
+  }
+}
+
+function showStatus(msg) {
+  const svg = document.getElementById('chart');
+  const W = svg.clientWidth || 840;
+  const H = svg.clientHeight || 344;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.appendChild(svgText(msg, {
+    x: W / 2, y: H / 2,
+    'text-anchor': 'middle',
+    'dominant-baseline': 'central',
+    'font-size': Math.max(14, Math.round(H * 0.050)),
+    'font-weight': 400,
+    fill: 'rgba(246,239,232,0.45)',
+  }));
+}
+
+// ── Data fetching ─────────────────────────────────────────────────────────────
+async function fetchDay(date) {
+  const y  = date.getFullYear();
+  const m  = String(date.getMonth() + 1).padStart(2, '0');
+  const d  = String(date.getDate()).padStart(2, '0');
+  const r  = await fetch(`https://www.elprisenligenu.dk/api/v1/prices/${y}/${m}-${d}_DK1.json`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function init() {
+  showStatus('Henter priser…');
+
+  const now         = new Date();
+  const month       = now.getMonth() + 1;
+  const currentHour = now.getHours();
+
+  try {
+    const raw   = await fetchDay(now);
+    const hours = raw.map(entry => {
+      // time_start is Danish local time, e.g. "2026-05-25T14:00:00+02:00"
+      const hour = parseInt(entry.time_start.slice(11, 13), 10);
+      return { hour, ...calcPrices(entry.DKK_per_kWh, hour, month) };
+    }).sort((a, b) => a.hour - b.hour);
+
+    lastHours       = hours;
+    lastCurrentHour = currentHour;
+    render(hours, currentHour);
+
+    // Refresh at midnight
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 30, 0); // 30s after midnight avoids edge races
+    setTimeout(init, midnight - now);
+
+  } catch {
+    showStatus('Priser ikke tilgængelige');
+  }
+}
+
+// ── Resize observer ───────────────────────────────────────────────────────────
+new ResizeObserver(() => {
+  if (lastHours) render(lastHours, lastCurrentHour);
+}).observe(document.getElementById('chart'));
+
+// ── iCUE wiring ───────────────────────────────────────────────────────────────
+icueEvents = { onICUEInitialized: init };
+
+// Run directly in browser (no iCUE runtime present) or if already initialised
+if (typeof iCUE_initialized === 'undefined' || iCUE_initialized) init();
+</script>
+</body>
+</html>
