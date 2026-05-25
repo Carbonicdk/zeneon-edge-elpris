@@ -138,9 +138,6 @@ function render(hours, currentHour) {
   // Font sizes
   const fsLabel = Math.max(11, Math.round(H * 0.030));
   const fsHour  = Math.max(11, Math.round(H * 0.033));
-  const fsPill  = Math.max(7,  Math.round(H * 0.017));
-  const pillH   = Math.round(fsPill * 1.6);
-  const pillW   = Math.round(pillH * 2.8);
 
   const maxVal = Math.max(...hours.map(h => h.total));
   const { ticks, top } = niceTicks(maxVal, 0.25);
@@ -184,7 +181,6 @@ function render(hours, currentHour) {
 
   // Hour bars
   const hourLabelY = H - padBottom + Math.round(padBottom * 0.42);
-  const pillY      = H - padBottom + Math.round(padBottom * 0.70);
 
   for (let i = 0; i < 24; i++) {
     const h = hours[i];
@@ -262,27 +258,6 @@ function render(hours, currentHour) {
       'font-weight': isNow ? 800 : 500,
       fill: isNow ? C.curLabel : C.fgMuted,
     }));
-
-    // "NU" pill
-    if (isNow) {
-      const pG = svgEl('g', { transform: `translate(${cx},${pillY})` });
-      pG.appendChild(svgEl('rect', {
-        x: -(pillW / 2), y: -(pillH / 2),
-        width: pillW, height: pillH,
-        rx: pillH / 2,
-        fill: C.curStroke,
-      }));
-      pG.appendChild(svgText('NU', {
-        x: 0, y: 0,
-        'text-anchor': 'middle',
-        'dominant-baseline': 'central',
-        'font-size': fsPill,
-        'font-weight': 800,
-        fill: '#0e0a08',
-        'letter-spacing': Math.max(1, Math.round(fsPill * 0.25)),
-      }));
-      g.appendChild(pG);
-    }
 
     svg.appendChild(g);
   }
