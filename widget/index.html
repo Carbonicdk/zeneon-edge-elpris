@@ -30,9 +30,9 @@ const SURCHARGE  = 6.00;   // Gasel surcharge, øre/kWh excl. VAT
 const ENERGINET  = 21.34;  // Energinet total (transport + system + TSO), øre/kWh excl. VAT
 const DUTY       = 0.80;   // Electricity duty 2026–2027, øre/kWh excl. VAT
 const VAT        = 1.25;
-const FIXED      = 934 / 1900 * 100; // L-net net subscription amortised, øre/kWh incl. VAT
+const FIXED      = 931.25 / 1900 * 100; // L-net net subscription amortised, øre/kWh incl. VAT (745 DKK excl. VAT/year × 1.25)
 
-// L-net C-tariff (øre/kWh excl. VAT, valid from 1 May 2026)
+// L-net C-tariff (øre/kWh excl. VAT, valid from 1 July 2026)
 function lNetTariff(hour, month) {
   const summer = month >= 4 && month <= 9;
   if (hour >= 17 && hour <= 20) return summer ? 20.82 : 48.05; // high-peak
@@ -212,7 +212,7 @@ function render(hours, currentHour) {
       fill: isNow ? C.current : C.bar,
     }));
 
-    // Fixed network subscription cap (top segment, constant 49.16 øre/kWh)
+    // Fixed network subscription cap (top segment, constant 49.01 øre/kWh)
     if (h.total > h.spot) {
       g.appendChild(svgEl('rect', {
         x, y: totalY,
@@ -316,8 +316,8 @@ async function init() {
     midnight.setHours(24, 0, 30, 0); // 30s after midnight avoids edge races
     setTimeout(init, midnight - now);
 
-  } catch {
-    showStatus('Priser ikke tilgængelige');
+  } catch (e) {
+    showStatus('Priser ikke tilgængelige – ' + (e && (e.message || String(e))));
   }
 }
 

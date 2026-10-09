@@ -60,16 +60,17 @@ TSO tariff was missing in an earlier version of this file.
 | Electricity duty | 0.80 øre/kWh |
 
 ### L-net Network Tariff (residential, C-tariff) — excl. VAT
-Valid from 1 May 2026. Source: `https://www.l-net.dk/media/1333/tariffer_20260501.pdf`
+Valid from 1 July 2026. Source: `https://www.l-net.dk/media/1350/tariffer_20260701_v06.pdf`
+
+Derived as (incl. VAT value from PDF) ÷ 1.25:
 
 | Period | Off-peak (00–06) | Peak (06–17 & 21–24) | High-peak (17–21) |
 |---|---|---|---|
 | Summer (Apr–Sep) | 5.34 øre/kWh | 8.01 øre/kWh | 20.82 øre/kWh |
 | Winter (Oct–Mar) | 5.34 øre/kWh | 16.02 øre/kWh | 48.05 øre/kWh |
 
-**L-net network subscription (C):** 934 DKK/year incl. VAT (748 DKK excl.).
-Fixed amount independent of supplier. At 1,900 kWh/year = 934 / 1,900 × 100 = **49.16 øre/kWh incl. VAT**.
-Confirmed against Gasel's display (49.18 øre/kWh).
+**L-net network subscription (C):** 931.25 DKK/year incl. VAT (745 DKK excl.).
+Fixed amount independent of supplier. At 1,900 kWh/year = 931.25 / 1,900 × 100 = **49.01 øre/kWh incl. VAT**.
 
 ---
 
@@ -88,7 +89,7 @@ var_excl_vat = spot + surcharge + l_net_tariff + 21.34 + 0.80
 var_incl_vat = var_excl_vat × 1.25
 
 # 2) Fixed network subscription per kWh (incl. VAT)
-fixed_per_kwh = 934 / annual_kwh × 100        # = 49.16 øre/kWh at 1900 kWh
+fixed_per_kwh = 931.25 / annual_kwh × 100     # = 49.01 øre/kWh at 1900 kWh
 
 # 3) All-in kWh price
 allin_incl_vat = var_incl_vat + fixed_per_kwh
@@ -116,8 +117,8 @@ high-peak = hours 17–20  (17:00–21:00)
 
 ```
 Variable:  (30 + 6 + 20.82 + 21.34 + 0.80) × 1.25 = 98.70 øre/kWh
-Fixed:     934 / 1900 × 100                        = 49.16 øre/kWh
-All-in:    98.70 + 49.16                           = 147.86 øre/kWh ≈ 1.48 DKK/kWh
+Fixed:     931.25 / 1900 × 100                     = 49.01 øre/kWh
+All-in:    98.70 + 49.01                           = 147.71 øre/kWh ≈ 1.48 DKK/kWh
 ```
 
 The variable portion drops significantly in off-peak/summer; the fixed portion (49.16 øre) is constant and accounts for a relatively large share at low consumption.
