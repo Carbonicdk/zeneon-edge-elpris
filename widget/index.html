@@ -55,7 +55,9 @@ function calcPrices(spotDkk, hour, month) {
 
 // ── Colours (Warm Amber theme) ───────────────────────────────────────────────
 const C = {
+  fg:        '#f6efe8',
   fgMuted:   'rgba(246,239,232,0.45)',
+  track:     'rgba(246,239,232,0.10)',
   grid:      'rgba(246,239,232,0.07)',
   bar:       '#b8542e',
   tariff:    '#e89668',
@@ -88,11 +90,26 @@ function niceTicks(max, step) {
   return { ticks, top };
 }
 
-// ── Render ───────────────────────────────────────────────────────────────────
+// ── State ────────────────────────────────────────────────────────────────────
 let lastHours = null;
 let lastCurrentHour = 0;
+let priceStatus = 'Henter priser…';
 let bgOn = true;
 
+let mode = 'price'; // 'price' | 'claude', toggled by clicking the widget
+let claudeData = null;
+let claudeStatus = 'Henter Claude-forbrug…';
+let claudeTimer = null;
+
+function draw() {
+  if (mode === 'claude') {
+    if (claudeData) renderClaude(claudeData); else showStatus(claudeStatus);
+  } else {
+    if (lastHours) render(lastHours, lastCurrentHour); else showStatus(priceStatus);
+  }
+}
+
+// ── Render: price chart ──────────────────────────────────────────────────────
 function render(hours, currentHour) {
   const svg = document.getElementById('chart');
   const W = svg.clientWidth;
@@ -251,6 +268,63 @@ function render(hours, currentHour) {
   }
 }
 
+// ── Render: Claude usage gauges ──────────────────────────────────────────────
+const GAUGE_START = 135; // degrees clockwise from 3 o'clock; 270° sweep leaves the gap at the bottom
+const GAUGE_SWEEP = 270;
+
+function arcPath(cx, cy, r, a0, a1) {
+  const pt = a => `${cx + r * Math.cos(a * Math.PI / 180)} ${cy + r * Math.sin(a * Math.PI / 180)}`;
+  return `M ${pt(a0)} A ${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${pt(a1)}`;
+}
+
+function gauge(svg, cx, cy, R, percent, label, caption, fsCaption) {
+  const sw = R * 0.16;
+  const p  = Math.min(100, Math.max(0, percent));
+
+  svg.appendChild(svgEl('path', {
+    d: arcPath(cx, cy, R, GAUGE_START, GAUGE_START + GAUGE_SWEEP),
+    fill: 'none', stroke: C.track, 'stroke-width': sw, 'stroke-linecap': 'round',
+  }));
+  if (p > 0) {
+    svg.appendChild(svgEl('path', {
+      d: arcPath(cx, cy, R, GAUGE_START, GAUGE_START + GAUGE_SWEEP * p / 100),
+      fill: 'none', stroke: C.tariff, 'stroke-width': sw, 'stroke-linecap': 'round',
+    }));
+  }
+
+  svg.appendChild(svgText(Math.round(percent) + '%', {
+    x: cx, y: cy, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': Math.round(R * 0.45), 'font-weight': 700, fill: C.fg,
+  }));
+  svg.appendChild(svgText(label, {
+    x: cx, y: cy + R * 0.38, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': Math.max(11, Math.round(R * 0.15)), 'font-weight': 500, fill: C.fgMuted,
+  }));
+  svg.appendChild(svgText(caption, {
+    x: cx, y: cy + R * 1.02, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': fsCaption, 'font-weight': 500, fill: C.fgMuted,
+  }));
+}
+
+function renderClaude(data) {
+  const svg = document.getElementById('chart');
+  const W = svg.clientWidth;
+  const H = svg.clientHeight;
+  if (!W || !H) return;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  const R         = Math.min(W * 0.17, H * 0.36);
+  const cy        = H * 0.45;
+  const fsCaption = Math.max(12, Math.round(H * 0.045));
+  const dayTime   = { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
+  const fmt       = d => new Date(d).toLocaleString('da-DK', dayTime);
+
+  gauge(svg, W * 0.27, cy, R, data.session.percent, 'Session', fmt(data.fetchedAt), fsCaption);
+  gauge(svg, W * 0.73, cy, R, data.weekly.percent, 'Uge', 'Nulstilles ' + fmt(data.weekly.resetsAt), fsCaption);
+}
+
 function showStatus(msg) {
   const svg = document.getElementById('chart');
   const W = svg.clientWidth || 840;
@@ -275,7 +349,7 @@ function scheduleHourTick() {
                      - now.getMilliseconds();
   setTimeout(() => {
     lastCurrentHour = new Date().getHours();
-    if (lastHours) render(lastHours, lastCurrentHour);
+    draw();
     scheduleHourTick();
   }, msToNextHour);
 }
@@ -290,8 +364,11 @@ async function fetchDay(date) {
   return r.json();
 }
 
+const PRICE_RETRY_MS = 5 * 60000;
+
 async function init() {
-  showStatus('Henter priser…');
+  priceStatus = 'Henter priser…';
+  draw();
 
   const now         = new Date();
   const month       = now.getMonth() + 1;
@@ -307,24 +384,53 @@ async function init() {
 
     lastHours       = hours;
     lastCurrentHour = currentHour;
-    render(hours, currentHour);
+    draw();
 
-    scheduleHourTick();
-
-    // Refresh at midnight
     const midnight = new Date(now);
     midnight.setHours(24, 0, 30, 0); // 30s after midnight avoids edge races
     setTimeout(init, midnight - now);
 
   } catch (e) {
-    showStatus('Priser ikke tilgængelige – ' + (e && (e.message || String(e))));
+    lastHours   = null;
+    priceStatus = 'Priser ikke tilgængelige – ' + (e && (e.message || String(e)));
+    draw();
+    setTimeout(init, PRICE_RETRY_MS);
   }
 }
 
-// ── Resize observer ───────────────────────────────────────────────────────────
-new ResizeObserver(() => {
-  if (lastHours) render(lastHours, lastCurrentHour);
-}).observe(document.getElementById('chart'));
+// ── Claude mode ───────────────────────────────────────────────────────────────
+// Served by helper/claude-usage-server.ps1; only polled while Claude mode is visible.
+const CLAUDE_URL = 'http://127.0.0.1:47821/usage';
+
+async function fetchClaude() {
+  try {
+    const r    = await fetch(CLAUDE_URL);
+    const body = await r.json();
+    if (r.status === 401) throw new Error('Åbn Claude Code for at forny login');
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    claudeData = { ...body, fetchedAt: new Date() };
+  } catch (e) {
+    claudeData   = null;
+    claudeStatus = 'Claude-forbrug ikke tilgængeligt – ' + e.message;
+  }
+  if (mode === 'claude') draw();
+}
+
+function toggleMode() {
+  mode = mode === 'price' ? 'claude' : 'price';
+  clearInterval(claudeTimer);
+  if (mode === 'claude') {
+    fetchClaude();
+    claudeTimer = setInterval(fetchClaude, 60000);
+  }
+  draw();
+}
+
+document.addEventListener('click', toggleMode);
+
+// ── Resize observer and hourly tick ───────────────────────────────────────────
+new ResizeObserver(draw).observe(document.getElementById('chart'));
+scheduleHourTick();
 
 // ── iCUE wiring ───────────────────────────────────────────────────────────────
 // iCUE may inject properties into a sandboxed scope rather than window directly
@@ -349,7 +455,7 @@ function applyBackground() {
       'radial-gradient(ellipse 70% 50% at 80% -20%, rgba(217,119,87,0.10), transparent 60%)'
     : '';
 
-  if (lastHours) render(lastHours, lastCurrentHour);
+  draw();
 }
 
 icueEvents = { onICUEInitialized: init, onDataUpdated: applyBackground };

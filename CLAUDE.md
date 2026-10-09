@@ -34,6 +34,9 @@ Always use the actual hourly price, never a monthly average (the product is hour
 - **Technology:** Vanilla HTML/JS/CSS — iCUE Widget Builder format (zip with `index.html` + `manifest.json`)
 - **Display:** Full day, 24 hours fixed 00–23, Warm Amber dark-mode design
 - **Annual consumption:** Hardcoded 1,900 kWh
+- **Claude mode:** Clicking the widget toggles to two gauges (Claude session % / weekly %). Data comes from
+  `helper/claude-usage-server.ps1` (localhost:47821, started at logon by `helper/install.ps1`), which is only
+  called while Claude mode is visible. iCUE prompts to allow `localhost` the first time Claude mode is opened.
 - See `docs/plan.md` for the full plan including design tokens and layout
 
 ## iCUE Widget Builder Documentation
