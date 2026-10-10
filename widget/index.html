@@ -58,6 +58,7 @@ const C = {
   fg:        '#f6efe8',
   fgMuted:   'rgba(246,239,232,0.45)',
   track:     'rgba(246,239,232,0.10)',
+  working:   '#e5484d',
   grid:      'rgba(246,239,232,0.07)',
   bar:       '#b8542e',
   tariff:    '#e89668',
@@ -99,7 +100,9 @@ let bgOn = true;
 let mode = 'price'; // 'price' | 'claude', toggled by clicking the widget
 let claudeData = null;
 let claudeStatus = 'Henter Claude-forbrug…';
+let claudeWorking = false;
 let claudeTimer = null;
+let statusTimer = null;
 
 function draw() {
   if (mode === 'claude') {
@@ -306,6 +309,20 @@ function gauge(svg, cx, cy, R, percent, label, caption, fsCaption) {
   }));
 }
 
+function spinner(svg, cx, cy, r) {
+  const sw = r * 0.28;
+  svg.appendChild(svgEl('circle', { cx, cy, r, fill: 'none', stroke: C.track, 'stroke-width': sw }));
+  const arc = svgEl('path', {
+    d: arcPath(cx, cy, r, 0, 100),
+    fill: 'none', stroke: C.working, 'stroke-width': sw, 'stroke-linecap': 'round',
+  });
+  arc.appendChild(svgEl('animateTransform', {
+    attributeName: 'transform', type: 'rotate',
+    from: `0 ${cx} ${cy}`, to: `360 ${cx} ${cy}`, dur: '1s', repeatCount: 'indefinite',
+  }));
+  svg.appendChild(arc);
+}
+
 function renderClaude(data) {
   const svg = document.getElementById('chart');
   const W = svg.clientWidth;
@@ -323,6 +340,7 @@ function renderClaude(data) {
 
   gauge(svg, W * 0.27, cy, R, data.session.percent, 'Session', fmt(data.fetchedAt), fsCaption);
   gauge(svg, W * 0.73, cy, R, data.weekly.percent, 'Uge', 'Nulstilles ' + fmt(data.weekly.resetsAt), fsCaption);
+  if (claudeWorking) spinner(svg, W / 2, cy, R * 0.22);
 }
 
 function showStatus(msg) {
@@ -400,15 +418,17 @@ async function init() {
 
 // ── Claude mode ───────────────────────────────────────────────────────────────
 // Served by helper/claude-usage-server.ps1; only polled while Claude mode is visible.
-const CLAUDE_URL = 'http://127.0.0.1:47821/usage';
+const CLAUDE_HELPER = 'http://127.0.0.1:47821';
 
 async function fetchClaude() {
   try {
-    const r    = await fetch(CLAUDE_URL);
+    const r    = await fetch(`${CLAUDE_HELPER}/usage`);
     const body = await r.json();
     if (r.status === 401) throw new Error('Åbn Claude Code for at forny login');
+    if (r.status === 429) throw new Error('Anthropic begrænser forespørgsler – prøver igen kl. ' +
+      new Date(body.retryAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }));
     if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
-    claudeData = { ...body, fetchedAt: new Date() };
+    claudeData = body;
   } catch (e) {
     claudeData   = null;
     claudeStatus = 'Claude-forbrug ikke tilgængeligt – ' + e.message;
@@ -416,12 +436,28 @@ async function fetchClaude() {
   if (mode === 'claude') draw();
 }
 
+// Set by Claude Code hooks via the helper. If the helper is unreachable the usage
+// poll already shows the error, so the spinner simply stays off.
+async function fetchClaudeStatus() {
+  let working = false;
+  try {
+    const r = await fetch(`${CLAUDE_HELPER}/status`);
+    working = r.ok && (await r.json()).working;
+  } catch (e) {}
+  if (working === claudeWorking) return; // redraw only on change so the spinner doesn't restart
+  claudeWorking = working;
+  if (mode === 'claude') draw();
+}
+
 function toggleMode() {
   mode = mode === 'price' ? 'claude' : 'price';
   clearInterval(claudeTimer);
+  clearInterval(statusTimer);
   if (mode === 'claude') {
     fetchClaude();
+    fetchClaudeStatus();
     claudeTimer = setInterval(fetchClaude, 60000);
+    statusTimer = setInterval(fetchClaudeStatus, 2000);
   }
   draw();
 }
