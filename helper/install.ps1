@@ -3,7 +3,9 @@ $ErrorActionPreference = 'Stop'
 $TaskName = 'ElprisWidgetClaudeUsage'
 $script = Join-Path $PSScriptRoot 'claude-usage-server.ps1'
 
-$action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`""
+# conhost --headless gives the helper no window at all; with Windows Terminal as default terminal,
+# powershell -WindowStyle Hidden opens a visible terminal tab, and closing it kills the helper.
+$action   = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument "--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`""
 $trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
