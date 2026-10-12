@@ -1,6 +1,7 @@
 # Serves Claude plan usage and "Claude is working" status to the Elpris widget on http://127.0.0.1:47821.
 # Anthropic is only called when the widget asks, i.e. while Claude mode is on screen.
-# Claude Code hooks POST to /hook/start and /hook/stop to mark sessions busy or idle.
+# Claude Code hooks POST to /hook/start and /hook/stop to mark sessions busy or idle, and to
+# /hook/agent-start and /hook/agent-stop for subagents, which keep working after the main turn ends.
 $ErrorActionPreference = 'Stop'
 $CredPath = Join-Path $env:USERPROFILE '.claude\.credentials.json'
 $UsageTtl = [TimeSpan]::FromMinutes(5)
@@ -41,11 +42,11 @@ function Get-Usage {
     return $result
 }
 
-function Read-SessionId($request) {
+function Read-HookField($request, $field) {
     $reader = [System.IO.StreamReader]::new($request.InputStream, [System.Text.Encoding]::UTF8)
-    $id = ($reader.ReadToEnd() | ConvertFrom-Json).session_id
-    if (-not $id) { throw 'Hook payload has no session_id' }
-    return $id
+    $value = ($reader.ReadToEnd() | ConvertFrom-Json).$field
+    if (-not $value) { throw "Hook payload has no $field" }
+    return $value
 }
 
 $listener = [System.Net.HttpListener]::new()
@@ -58,8 +59,10 @@ while ($listener.IsListening) {
         switch ($ctx.Request.Url.AbsolutePath) {
             '/usage'      { $result = Get-Usage }
             '/status'     { $result = @{ status = 200; body = @{ working = $busy.Count -gt 0 } } }
-            '/hook/start' { $busy[(Read-SessionId $ctx.Request)] = $true; $result = @{ status = 200; body = @{ ok = $true } } }
-            '/hook/stop'  { $busy.Remove((Read-SessionId $ctx.Request)); $result = @{ status = 200; body = @{ ok = $true } } }
+            '/hook/start'       { $busy['session:' + (Read-HookField $ctx.Request 'session_id')] = $true; $result = @{ status = 200; body = @{ ok = $true } } }
+            '/hook/stop'        { $busy.Remove('session:' + (Read-HookField $ctx.Request 'session_id')); $result = @{ status = 200; body = @{ ok = $true } } }
+            '/hook/agent-start' { $busy['agent:' + (Read-HookField $ctx.Request 'agent_id')] = $true; $result = @{ status = 200; body = @{ ok = $true } } }
+            '/hook/agent-stop'  { $busy.Remove('agent:' + (Read-HookField $ctx.Request 'agent_id')); $result = @{ status = 200; body = @{ ok = $true } } }
             default       { $result = @{ status = 404; body = @{ error = 'not_found' } } }
         }
     } catch {

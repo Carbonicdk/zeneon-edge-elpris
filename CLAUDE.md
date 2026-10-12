@@ -38,7 +38,9 @@ Always use the actual hourly price, never a monthly average (the product is hour
   `helper/claude-usage-server.ps1` (localhost:47821, started at logon by `helper/install.ps1`), which is only
   called while Claude mode is visible. iCUE prompts to allow `localhost` the first time Claude mode is opened.
   A red spinner between the gauges shows while any Claude Code session is working; global hooks in
-  `~/.claude/settings.json` (UserPromptSubmit → `/hook/start`; Stop, StopFailure, SessionEnd → `/hook/stop`) feed it.
+  `~/.claude/settings.json` (UserPromptSubmit → `/hook/start`; Stop, StopFailure, SessionEnd → `/hook/stop`;
+  SubagentStart → `/hook/agent-start`; SubagentStop → `/hook/agent-stop`) feed it. Subagents are tracked by
+  `agent_id` so background agents keep the spinner on after the main turn ends.
 - See `docs/plan.md` for the full plan including design tokens and layout
 
 ## iCUE Widget Builder Documentation
